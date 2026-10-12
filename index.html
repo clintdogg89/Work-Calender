@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Work Calendar</title>
+  <meta name="description" content="A sleek work and home schedule calendar with multi-week selection, drag-to-paint scheduling, and annual tallies." />
+  <meta property="og:title" content="Work Calendar" />
+  <meta property="og:description" content="Modern work and home schedule planner with multi-week selection and year tally." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              work: '#06b6d4',      // Vibrant Cyan / Work
+              workDark: '#083344',
+              workBorder: '#0891b2',
+              home: '#10b981',      // Emerald Green / Home
+              homeDark: '#064e3b',
+              homeBorder: '#059669',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #0c0f17;
+      color: #f1f5f9;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Day block states */
+    .day-cell {
+      transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+      touch-action: none;
+    }
+    .day-cell:active {
+      transform: scale(0.97);
+    }
+    
+    @media (max-width: 640px) {
+      .day-cell {
+        min-height: 46px;
+        padding: 3px 2px !important;
+      }
+      .week-btn {
+        min-height: 46px !important;
+      }
+    }
+    
+    /* Default Neutral State */
+    .state-none {
+      background-color: #151b28;
+      border-color: rgba(255, 255, 255, 0.07);
+    }
+    .state-none:hover {
+      background-color: #1d2538;
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .state-none.is-outside {
+      background-color: #0f131d;
+      border-color: rgba(255, 255, 255, 0.03);
+      opacity: 0.45;
+    }
+    .state-none.is-outside:hover {
+      opacity: 0.85;
+      background-color: #171d2c;
+    }
+
+    /* Work Highlight State: Distinct Cyan/Amber */
+    .state-work {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.22) 0%, rgba(8, 51, 68, 0.45) 100%);
+      border-color: #06b6d4 !important;
+      box-shadow: inset 0 0 14px rgba(6, 182, 212, 0.12);
+    }
+    .state-work:hover {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.32) 0%, rgba(8, 51, 68, 0.6) 100%);
+      border-color: #22d3ee !important;
+    }
+    .state-work.is-outside {
+      opacity: 0.7;
+    }
+
+    /* Home Highlight State: Distinct Emerald Green */
+    .state-home {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(6, 78, 59, 0.45) 100%);
+      border-color: #10b981 !important;
+      box-shadow: inset 0 0 14px rgba(16, 185, 129, 0.12);
+    }
+    .state-home:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.32) 0%, rgba(6, 78, 59, 0.6) 100%);
+      border-color: #34d399 !important;
+    }
+    .state-home.is-outside {
+      opacity: 0.7;
+    }
+
+    /* Today marker glow */
+    .is-today-ring {
+      box-shadow: 0 0 0 2px #38bdf8, 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Week selection button */
+    .week-btn {
+      transition: all 0.15s ease;
+    }
+    .week-btn:hover {
+      border-color: #38bdf8;
+      background-color: #1e293b;
+      color: #38bdf8;
+    }
+
+    /* Dragging active state indicator */
+    body.is-painting {
+      cursor: crosshair !important;
+    }
+    body.is-painting .day-cell {
+      cursor: crosshair !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#0c0f17] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-800/80 bg-[#0f1422]/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Wordmark & Title -->
+      <div class="flex items-center gap-3 shrink-0">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-slate-950 font-bold">
+          <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Work Calendar
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Office & Remote Schedule Planner</p>
+        </div>
+      </div>
+
+      <!-- Quick Actions / Tools in Header -->
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btn-undo" title="Undo (Ctrl+Z)" class="p-2 text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-lg text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 0 1 5 5v2m-15-7l4-4m-4 4l4 4"/>
+          </svg>
+          <span class="hidden md:inline">Undo</span>
+        </button>
+
+        <button id="btn-redo" title="Redo (Ctrl+Y)" class="p-2 text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-lg text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-30 disabled:pointer-events-none">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 10H11a5 5 0 0 0-5 5v2m15-7l-4-4m4 4l-4 4"/>
+          </svg>
+          <span class="hidden md:inline">Redo</span>
+        </button>
+
+        <div class="h-5 w-px bg-slate-800 mx-1"></div>
+
+        <button id="btn-presets" class="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-lg transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7"/>
+          </svg>
+          <span>Presets</span>
+        </button>
+
+        <button id="btn-export" class="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 rounded-lg transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span class="hidden sm:inline">Backup</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Content Viewport -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6 flex flex-col gap-3 sm:gap-6">
+
+    <!-- Top Controls: Month Navigation & Active Brush Mode -->
+    <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#121826] p-3 sm:p-4 rounded-xl border border-slate-800 shadow-xl">
+      
+      <!-- Month & Year Navigation -->
+      <div class="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div class="flex items-center gap-1 sm:gap-2">
+          <button id="btn-prev-month" aria-label="Previous Month" class="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 rounded-lg transition flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span class="hidden sm:inline">Prev</span>
+          </button>
+
+          <button id="btn-today" class="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-cyan-400 hover:text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-800/50 rounded-lg transition">
+            Today
+          </button>
+
+          <button id="btn-next-month" aria-label="Next Month" class="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 rounded-lg transition flex items-center gap-1">
+            <span class="hidden sm:inline">Next</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+
+        <div class="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
+
+        <!-- Month/Year Display Title -->
+        <div class="flex items-baseline gap-1.5 pl-1">
+          <h2 id="calendar-month-year" class="text-base sm:text-2xl font-bold tracking-tight text-white whitespace-nowrap">
+            October 2026
+          </h2>
+          <span id="calendar-year-badge" class="text-[10px] sm:text-xs font-mono font-medium text-slate-400 bg-slate-800/60 px-1.5 py-0.5 rounded border border-slate-700/40">
+            2026
+          </span>
+        </div>
+      </div>
+
+      <!-- Active Mode Selector (Brush Modes) -->
+      <div class="w-full md:w-auto">
+        <div class="grid grid-cols-3 sm:flex p-1 bg-slate-900/90 rounded-lg border border-slate-800 w-full gap-1">
+          
+          <!-- Mode: Mark Work -->
+          <button id="mode-work" class="mode-toggle-btn px-2 sm:px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1 sm:gap-2 text-white bg-cyan-600 shadow-md shadow-cyan-900/40 ring-1 ring-cyan-400" data-mode="work">
+            <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-cyan-300"></span>
+            <span>Work</span>
+            <kbd class="hidden md:inline px-1 py-0.2 bg-cyan-950/60 border border-cyan-700/40 rounded text-[10px] text-cyan-200">W</kbd>
+          </button>
+
+          <!-- Mode: Mark Home -->
+          <button id="mode-home" class="mode-toggle-btn px-2 sm:px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1 sm:gap-2 text-slate-400 hover:text-white hover:bg-slate-800/60" data-mode="home">
+            <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-400"></span>
+            <span>Home</span>
+            <kbd class="hidden md:inline px-1 py-0.2 bg-slate-800 border border-slate-700/40 rounded text-[10px] text-slate-400">H</kbd>
+          </button>
+
+          <!-- Mode: Clear -->
+          <button id="mode-clear" class="mode-toggle-btn px-2 sm:px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1 sm:gap-2 text-slate-400 hover:text-white hover:bg-slate-800/60" data-mode="clear">
+            <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-slate-500"></span>
+            <span>Clear</span>
+            <kbd class="hidden md:inline px-1 py-0.2 bg-slate-800 border border-slate-700/40 rounded text-[10px] text-slate-400">C</kbd>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Legend & Annual / Monthly Tally Section (Compact 2-col on mobile portrait, 3-col on desktop) -->
+    <section class="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
+      
+      <!-- Work Tally Card -->
+      <div class="col-span-1 bg-[#121826] border border-cyan-900/40 rounded-xl p-2.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-xl pointer-events-none"></div>
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <div class="flex items-center gap-1.5 sm:gap-2.5">
+            <span class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-md bg-cyan-500 shadow-md shadow-cyan-500/30"></span>
+            <span class="text-xs sm:text-sm font-semibold text-cyan-200 tracking-wide truncate">Work (Office)</span>
+          </div>
+          <span class="text-[10px] sm:text-[11px] font-mono text-cyan-400/80 bg-cyan-950/60 px-1.5 py-0.2 rounded border border-cyan-800/40 hidden xs:inline-block">
+            <span id="label-year-work">2026</span>
+          </span>
+        </div>
+
+        <div class="flex items-baseline justify-between gap-2 mt-0.5">
+          <div>
+            <div class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight tabular-nums flex items-baseline gap-1">
+              <span id="tally-year-work-days">0</span>
+              <span class="text-xs sm:text-sm font-sans font-medium text-slate-400">d</span>
+            </div>
+            <div class="text-[11px] sm:text-xs text-cyan-400/80 font-mono mt-0.5">
+              ≈ <span id="tally-year-work-weeks" class="font-semibold tabular-nums">0.0</span> wks
+            </div>
+          </div>
+
+          <div class="text-right">
+            <span class="text-[10px] text-slate-400 block">Month</span>
+            <span class="text-base sm:text-lg font-bold font-mono text-cyan-300 tabular-nums">
+              <span id="tally-month-work-days">0</span><span class="text-[10px] font-sans font-normal text-slate-400">d</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Visual Bar -->
+        <div class="w-full bg-slate-800/80 h-1.5 rounded-full mt-2.5 sm:mt-3 overflow-hidden">
+          <div id="bar-work-ratio" class="bg-cyan-400 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Home Tally Card -->
+      <div class="col-span-1 bg-[#121826] border border-emerald-900/40 rounded-xl p-2.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl pointer-events-none"></div>
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <div class="flex items-center gap-1.5 sm:gap-2.5">
+            <span class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-md bg-emerald-500 shadow-md shadow-emerald-500/30"></span>
+            <span class="text-xs sm:text-sm font-semibold text-emerald-200 tracking-wide truncate">Home (Remote)</span>
+          </div>
+          <span class="text-[10px] sm:text-[11px] font-mono text-emerald-400/80 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800/40 hidden xs:inline-block">
+            <span id="label-year-home">2026</span>
+          </span>
+        </div>
+
+        <div class="flex items-baseline justify-between gap-2 mt-0.5">
+          <div>
+            <div class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight tabular-nums flex items-baseline gap-1">
+              <span id="tally-year-home-days">0</span>
+              <span class="text-xs sm:text-sm font-sans font-medium text-slate-400">d</span>
+            </div>
+            <div class="text-[11px] sm:text-xs text-emerald-400/80 font-mono mt-0.5">
+              ≈ <span id="tally-year-home-weeks" class="font-semibold tabular-nums">0.0</span> wks
+            </div>
+          </div>
+
+          <div class="text-right">
+            <span class="text-[10px] text-slate-400 block">Month</span>
+            <span class="text-base sm:text-lg font-bold font-mono text-emerald-300 tabular-nums">
+              <span id="tally-month-home-days">0</span><span class="text-[10px] font-sans font-normal text-slate-400">d</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Visual Bar -->
+        <div class="w-full bg-slate-800/80 h-1.5 rounded-full mt-2.5 sm:mt-3 overflow-hidden">
+          <div id="bar-home-ratio" class="bg-emerald-400 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Balance & Schedule Split Card (Full width on mobile portrait) -->
+      <div class="col-span-2 md:col-span-1 bg-[#121826] border border-slate-800 rounded-xl p-2.5 sm:p-4 flex flex-col justify-between shadow-lg">
+        <div class="flex items-center justify-between mb-1.5 sm:mb-3">
+          <div class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <span class="text-xs sm:text-sm font-semibold text-slate-200">Hybrid Ratio</span>
+          </div>
+          <span id="tally-total-scheduled" class="text-[11px] sm:text-xs font-mono text-slate-400">
+            0 days total
+          </span>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between text-[11px] sm:text-xs font-mono mb-1">
+            <span class="text-cyan-400 font-semibold"><span id="pct-work">0</span>% Work</span>
+            <span class="text-emerald-400 font-semibold"><span id="pct-home">0</span>% Home</span>
+          </div>
+
+          <!-- Dual Ratio Split Bar -->
+          <div class="w-full bg-slate-800 h-2.5 sm:h-3 rounded-full flex overflow-hidden p-0.5 border border-slate-700/60">
+            <div id="split-bar-work" class="bg-cyan-500 h-full rounded-l-full transition-all duration-300" style="width: 50%"></div>
+            <div id="split-bar-home" class="bg-emerald-500 h-full rounded-r-full transition-all duration-300" style="width: 50%"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 mt-1.5 sm:mt-2">
+          <span>Target: ~260 workdays</span>
+          <span id="tally-coverage-rate" class="font-mono text-slate-300">0% scheduled</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Calendar Month Grid Container -->
+    <section class="bg-[#121826] border border-slate-800/90 rounded-xl sm:rounded-2xl p-2 sm:p-5 shadow-2xl overflow-hidden flex flex-col gap-2 sm:gap-3">
+      
+      <!-- Quick Interaction Banner / Hint -->
+      <div class="flex items-center justify-between gap-2 px-1 text-[11px] sm:text-xs text-slate-400 border-b border-slate-800/80 pb-2">
+        <div class="flex items-center gap-1.5 truncate">
+          <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 text-[9px] font-bold shrink-0">i</span>
+          <span class="truncate"><strong>Drag</strong> across days · Tap <strong>Wk</strong> for full week</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 text-[10px] sm:text-xs font-mono">
+          <span class="flex items-center gap-1 text-cyan-300"><span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> Work</span>
+          <span class="flex items-center gap-1 text-emerald-300"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Home</span>
+        </div>
+      </div>
+
+      <!-- Calendar Table Grid: Full-width responsive grid (no horizontal scroll needed in portrait mode) -->
+      <div class="w-full select-none">
+        
+        <!-- Column Headers: Week + Mon..Sun -->
+        <div class="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[48px_repeat(7,1fr)] gap-1 sm:gap-2 mb-1.5 text-center text-xs font-semibold text-slate-400">
+          <div class="py-1 text-slate-500 uppercase tracking-wider text-[10px] font-mono">Wk</div>
+          <div class="py-1"><span class="sm:hidden">M</span><span class="hidden sm:inline">Mon</span></div>
+          <div class="py-1"><span class="sm:hidden">T</span><span class="hidden sm:inline">Tue</span></div>
+          <div class="py-1"><span class="sm:hidden">W</span><span class="hidden sm:inline">Wed</span></div>
+          <div class="py-1"><span class="sm:hidden">T</span><span class="hidden sm:inline">Thu</span></div>
+          <div class="py-1"><span class="sm:hidden">F</span><span class="hidden sm:inline">Fri</span></div>
+          <div class="py-1 text-slate-500"><span class="sm:hidden">S</span><span class="hidden sm:inline">Sat</span></div>
+          <div class="py-1 text-slate-500"><span class="sm:hidden">S</span><span class="hidden sm:inline">Sun</span></div>
+        </div>
+
+        <!-- Dynamic Calendar Rows Container -->
+        <div id="calendar-rows" class="flex flex-col gap-1 sm:gap-2">
+          <!-- Dynamically populated via JavaScript -->
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Bottom Action Bar / Presets & Fast Operations -->
+    <section class="bg-[#121826] border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <span class="text-slate-400 font-medium text-[11px] sm:text-xs">Batch:</span>
+        <button id="quick-mon-wed" class="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-md text-slate-200 text-[11px] sm:text-xs transition">
+          3/2 Hybrid
+        </button>
+        <button id="quick-mon-fri-work" class="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-md text-slate-200 text-[11px] sm:text-xs transition">
+          Full Office
+        </button>
+        <button id="quick-mon-fri-home" class="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-md text-slate-200 text-[11px] sm:text-xs transition">
+          Full Remote
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+        <button id="btn-clear-month" class="flex-1 sm:flex-initial px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/40 border border-rose-800/50 rounded-md text-rose-300 font-medium text-[11px] sm:text-xs transition">
+          Clear Month
+        </button>
+        <button id="btn-clear-all" class="flex-1 sm:flex-initial px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 rounded-md text-slate-300 text-[11px] sm:text-xs transition">
+          Reset All
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Presets & Backup Modal -->
+  <div id="modal-container" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#121826] border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 id="modal-title" class="text-lg font-bold text-white">Backup &amp; Data</h3>
+        <button id="modal-close" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="modal-body" class="flex flex-col gap-3 text-xs text-slate-300">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 border border-slate-700 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-medium z-50 transform translate-y-16 opacity-0 transition-all duration-200 pointer-events-none flex items-center gap-2">
+    <span id="toast-icon">✓</span>
+    <span id="toast-msg">Saved to localStorage</span>
+  </div>
+
+  <!-- Single-File Vanilla JavaScript Logic -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ----------------------------------------------------
+      // State Management & Constants
+      // ----------------------------------------------------
+      const STORAGE_KEY = 'work_calendar_data_v1';
+      
+      // Schedule mapping: { "YYYY-MM-DD": "work" | "home" }
+      let schedule = {};
+
+      // History stack for Undo / Redo
+      let undoStack = [];
+      let redoStack = [];
+      const MAX_HISTORY = 40;
+
+      // Current view date (starts at current date)
+      const now = new Date();
+      let currentYear = now.getFullYear();
+      let currentMonth = now.getMonth(); // 0-indexed (0 = Jan, 9 = Oct)
+
+      // Active brush mode: 'work' | 'home' | 'clear'
+      let activeMode = 'work';
+
+      // Painting / Dragging state
+      let isDragging = false;
+      let dragModifiedDates = new Set();
+      let lastClickedDate = null;
+
+      // ----------------------------------------------------
+      // Local Storage Load & Save
+      // ----------------------------------------------------
+      function loadSchedule() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            schedule = JSON.parse(raw) || {};
+          }
+        } catch (e) {
+          console.error('Failed to parse localStorage schedule:', e);
+          schedule = {};
+        }
+      }
+
+      function saveSchedule() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(schedule));
+        } catch (e) {
+          console.error('Failed to save to localStorage:', e);
+        }
+      }
+
+      function pushHistory() {
+        undoStack.push(JSON.stringify(schedule));
+        if (undoStack.length > MAX_HISTORY) undoStack.shift();
+        redoStack = []; // clear redo on new action
+        updateUndoRedoButtons();
+      }
+
+      function undo() {
+        if (undoStack.length === 0) return;
+        redoStack.push(JSON.stringify(schedule));
+        const prev = undoStack.pop();
+        schedule = JSON.parse(prev);
+        saveSchedule();
+        renderCalendar();
+        renderTallies();
+        updateUndoRedoButtons();
+        showToast('Action undone');
+      }
+
+      function redo() {
+        if (redoStack.length === 0) return;
+        undoStack.push(JSON.stringify(schedule));
+        const next = redoStack.pop();
+        schedule = JSON.parse(next);
+        saveSchedule();
+        renderCalendar();
+        renderTallies();
+        updateUndoRedoButtons();
+        showToast('Action redone');
+      }
+
+      function updateUndoRedoButtons() {
+        const btnUndo = document.getElementById('btn-undo');
+        const btnRedo = document.getElementById('btn-redo');
+        if (btnUndo) btnUndo.disabled = undoStack.length === 0;
+        if (btnRedo) btnRedo.disabled = redoStack.length === 0;
+      }
+
+      function showToast(msg, isSuccess = true) {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-msg');
+        const toastIcon = document.getElementById('toast-icon');
+        if (!toast || !toastMsg) return;
+
+        toastMsg.textContent = msg;
+        toastIcon.textContent = isSuccess ? '✓' : 'ℹ';
+        toast.classList.remove('translate-y-16', 'opacity-0');
+        toast.classList.add('translate-y-0', 'opacity-100');
+
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(() => {
+          toast.classList.remove('translate-y-0', 'opacity-100');
+          toast.classList.add('translate-y-16', 'opacity-0');
+        }, 2200);
+      }
+
+      // ----------------------------------------------------
+      // Date Helpers
+      // ----------------------------------------------------
+      function formatDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+
+      function parseDate(str) {
+        const parts = str.split('-');
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      }
+
+      // Get ISO Week Number
+      function getISOWeekNumber(d) {
+        const target = new Date(d.valueOf());
+        const dayNr = (d.getDay() + 6) % 7; // Mon = 0, Sun = 6
+        target.setDate(target.getDate() - dayNr + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) {
+          target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
+        }
+        return 1 + Math.ceil((firstThursday - target) / 604800000);
+      }
+
+      const MONTH_NAMES = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+
+      // ----------------------------------------------------
+      // Mode Toggle Controller
+      // ----------------------------------------------------
+      function setActiveMode(mode) {
+        activeMode = mode;
+        const buttons = document.querySelectorAll('.mode-toggle-btn');
+        buttons.forEach((btn) => {
+          const btnMode = btn.getAttribute('data-mode');
+          if (btnMode === mode) {
+            btn.className = 'mode-toggle-btn flex-1 sm:flex-initial px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-2 text-white shadow-md ';
+            if (mode === 'work') {
+              btn.className += 'bg-cyan-600 shadow-cyan-900/40 ring-1 ring-cyan-400';
+            } else if (mode === 'home') {
+              btn.className += 'bg-emerald-600 shadow-emerald-900/40 ring-1 ring-emerald-400';
+            } else {
+              btn.className += 'bg-slate-700 shadow-slate-900/40 ring-1 ring-slate-400';
+            }
+          } else {
+            btn.className = 'mode-toggle-btn flex-1 sm:flex-initial px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/60';
+          }
+        });
+      }
+
+      // ----------------------------------------------------
+      // Apply Schedule to Date
+      // ----------------------------------------------------
+      function paintDate(dateStr, mode) {
+        if (mode === 'clear') {
+          delete schedule[dateStr];
+        } else {
+          schedule[dateStr] = mode;
+        }
+      }
+
+      // ----------------------------------------------------
+      // Calendar Matrix Computation
+      // ----------------------------------------------------
+      function getMonthMatrix(year, month) {
+        // First day of current month
+        const firstDay = new Date(year, month, 1);
+        // Mon = 0, Sun = 6
+        const startDayIndex = (firstDay.getDay() + 6) % 7;
+
+        // Calendar grid starts on the Monday before or on the 1st
+        const startDate = new Date(year, month, 1 - startDayIndex);
+
+        // Generate 6 full weeks (42 days) to cover all month boundaries reliably
+        const weeks = [];
+        let cur = new Date(startDate);
+
+        for (let w = 0; w < 6; w++) {
+          const weekDays = [];
+          for (let d = 0; d < 7; d++) {
+            weekDays.push(new Date(cur));
+            cur.setDate(cur.getDate() + 1);
+          }
+          // Only skip 6th week if all 7 days belong to the next month and at least 5 weeks rendered
+          if (w === 5 && weekDays[0].getMonth() !== month) {
+            break;
+          }
+          weeks.push(weekDays);
+        }
+
+        return weeks;
+      }
+
+      // ----------------------------------------------------
+      // Render Calendar Grid
+      // ----------------------------------------------------
+      function renderCalendar() {
+        const titleEl = document.getElementById('calendar-month-year');
+        const badgeEl = document.getElementById('calendar-year-badge');
+        const rowsEl = document.getElementById('calendar-rows');
+        if (!rowsEl) return;
+
+        titleEl.textContent = `${MONTH_NAMES[currentMonth]} ${currentYear}`;
+        badgeEl.textContent = currentYear;
+
+        const weeks = getMonthMatrix(currentYear, currentMonth);
+        const todayStr = formatDate(new Date());
+
+        rowsEl.innerHTML = '';
+
+        weeks.forEach((weekDays) => {
+          const weekRow = document.createElement('div');
+          weekRow.className = 'grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[48px_repeat(7,1fr)] gap-1 sm:gap-2 items-stretch';
+
+          // First day of this week used for week number
+          const midWeekDay = weekDays[3]; // Thursday determines ISO week
+          const weekNum = getISOWeekNumber(midWeekDay);
+
+          // Week dates array (for multi-week toggle)
+          const weekDateStrs = weekDays.map((d) => formatDate(d));
+
+          // Week Selection Button
+          const weekBtnCol = document.createElement('div');
+          weekBtnCol.className = 'flex items-center justify-center';
+
+          const weekBtn = document.createElement('button');
+          weekBtn.className = 'week-btn w-full h-full min-h-[46px] sm:min-h-[58px] rounded-md sm:rounded-xl bg-slate-900/70 border border-slate-800 text-slate-400 font-mono text-[10px] sm:text-xs flex flex-col items-center justify-center p-0.5 hover:text-cyan-400 group relative';
+          weekBtn.title = `Select full 7-day week (W${weekNum})`;
+          weekBtn.innerHTML = `
+            <span class="text-[8px] sm:text-[10px] text-slate-500 group-hover:text-cyan-400 transition leading-none">W</span>
+            <span class="font-bold text-slate-300 group-hover:text-cyan-300 transition text-[10px] sm:text-xs leading-none">${weekNum}</span>
+          `;
+
+          // Handle "Select Full Week" click
+          weekBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleFullWeek(weekDateStrs);
+          });
+
+          weekBtnCol.appendChild(weekBtn);
+          weekRow.appendChild(weekBtnCol);
+
+          // Render 7 Day Cells
+          weekDays.forEach((dayDate) => {
+            const dateStr = formatDate(dayDate);
+            const isOutside = dayDate.getMonth() !== currentMonth;
+            const isToday = dateStr === todayStr;
+            const state = schedule[dateStr] || 'none';
+
+            const cell = document.createElement('div');
+            cell.className = `day-cell relative rounded-md sm:rounded-xl p-1 sm:p-2.5 min-h-[46px] sm:min-h-[66px] border flex flex-col justify-between cursor-pointer select-none ${
+              isToday ? 'is-today-ring ' : ''
+            } ${isOutside ? 'is-outside ' : ''}`;
+
+            // Apply state class
+            cell.classList.add(`state-${state}`);
+            cell.setAttribute('data-date', dateStr);
+            cell.setAttribute('data-state', state);
+
+            // Month text preview if day is 1st of month
+            const isFirst = dayDate.getDate() === 1;
+            const monthLabel = isFirst ? `${MONTH_NAMES[dayDate.getMonth()].slice(0, 3)} ` : '';
+
+            // Status label badge markup
+            let statusBadge = '';
+            if (state === 'work') {
+              statusBadge = `
+                <div class="flex items-center justify-center sm:justify-start gap-1 mt-auto w-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
+                  <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight uppercase text-cyan-300 font-mono">
+                    <span class="inline sm:hidden">W</span><span class="hidden sm:inline">Work</span>
+                  </span>
+                </div>
+              `;
+            } else if (state === 'home') {
+              statusBadge = `
+                <div class="flex items-center justify-center sm:justify-start gap-1 mt-auto w-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                  <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight uppercase text-emerald-300 font-mono">
+                    <span class="inline sm:hidden">H</span><span class="hidden sm:inline">Home</span>
+                  </span>
+                </div>
+              `;
+            } else {
+              statusBadge = `
+                <div class="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-auto opacity-0 group-hover:opacity-100 transition text-center sm:text-left">
+                  ·
+                </div>
+              `;
+            }
+
+            // Cell Interior
+            cell.innerHTML = `
+              <div class="flex items-start justify-between leading-none">
+                <span class="text-xs sm:text-sm font-semibold tabular-nums ${
+                  isToday ? 'text-cyan-400 font-bold' : isOutside ? 'text-slate-500' : 'text-slate-200'
+                }">
+                  ${monthLabel}${dayDate.getDate()}
+                </span>
+                ${
+                  isToday
+                    ? '<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400 sm:hidden"></span><span class="hidden sm:inline text-[9px] font-mono uppercase bg-cyan-500/20 text-cyan-300 px-1 py-0.2 rounded font-bold">Today</span>'
+                    : ''
+                }
+              </div>
+              ${statusBadge}
+            `;
+
+            // Pointer event listeners for Drag-to-Paint & Range-Click
+            attachCellEvents(cell, dateStr);
+
+            weekRow.appendChild(cell);
+          });
+
+          rowsEl.appendChild(weekRow);
+        });
+      }
+
+      // ----------------------------------------------------
+      // Cell Interaction Handlers (Pointer Events)
+      // ----------------------------------------------------
+      function attachCellEvents(cell, dateStr) {
+        cell.addEventListener('pointerdown', (e) => {
+          // Only left click
+          if (e.button !== 0) return;
+          e.preventDefault();
+
+          // Range-click support with Shift key
+          if (e.shiftKey && lastClickedDate) {
+            pushHistory();
+            fillDateRange(lastClickedDate, dateStr, activeMode);
+            lastClickedDate = dateStr;
+            saveSchedule();
+            renderCalendar();
+            renderTallies();
+            return;
+          }
+
+          // Start Drag-to-Paint
+          pushHistory();
+          isDragging = true;
+          document.body.classList.add('is-painting');
+          dragModifiedDates.clear();
+
+          // Apply to the initial clicked date
+          applyBrushToCell(cell, dateStr);
+          dragModifiedDates.add(dateStr);
+          lastClickedDate = dateStr;
+        });
+
+        cell.addEventListener('pointerenter', (e) => {
+          if (!isDragging) return;
+          if (!dragModifiedDates.has(dateStr)) {
+            dragModifiedDates.add(dateStr);
+            applyBrushToCell(cell, dateStr);
+          }
+        });
+      }
+
+      // Global pointermove for rock-solid dragging across cells and touch devices
+      window.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        if (!target) return;
+        const dayCell = target.closest('.day-cell');
+        if (dayCell) {
+          const dStr = dayCell.getAttribute('data-date');
+          if (dStr && !dragModifiedDates.has(dStr)) {
+            dragModifiedDates.add(dStr);
+            applyBrushToCell(dayCell, dStr);
+          }
+        }
+      });
+
+      function applyBrushToCell(cell, dateStr) {
+        paintDate(dateStr, activeMode);
+
+        // Update cell DOM directly for instant 60fps painting responsiveness
+        cell.classList.remove('state-none', 'state-work', 'state-home');
+        cell.classList.add(`state-${activeMode}`);
+        cell.setAttribute('data-state', activeMode);
+
+        // Update badge inside cell
+        const existingBadge = cell.querySelector('.mt-auto');
+        if (existingBadge) {
+          if (activeMode === 'work') {
+            existingBadge.outerHTML = `
+              <div class="flex items-center justify-center sm:justify-start gap-1 mt-auto w-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
+                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight uppercase text-cyan-300 font-mono">
+                  <span class="inline sm:hidden">W</span><span class="hidden sm:inline">Work</span>
+                </span>
+              </div>
+            `;
+          } else if (activeMode === 'home') {
+            existingBadge.outerHTML = `
+              <div class="flex items-center justify-center sm:justify-start gap-1 mt-auto w-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight uppercase text-emerald-300 font-mono">
+                  <span class="inline sm:hidden">H</span><span class="hidden sm:inline">Home</span>
+                </span>
+              </div>
+            `;
+          } else {
+            existingBadge.outerHTML = `
+              <div class="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-auto opacity-0 group-hover:opacity-100 transition text-center sm:text-left">·</div>
+            `;
+          }
+        }
+
+        renderTallies();
+      }
+
+      // Window global pointerup to finish drag
+      window.addEventListener('pointerup', () => {
+        if (isDragging) {
+          isDragging = false;
+          document.body.classList.remove('is-painting');
+          saveSchedule();
+          renderTallies();
+        }
+      });
+
+      window.addEventListener('pointercancel', () => {
+        if (isDragging) {
+          isDragging = false;
+          document.body.classList.remove('is-painting');
+          saveSchedule();
+          renderTallies();
+        }
+      });
+
+      // ----------------------------------------------------
+      // Range Click (Shift+Click)
+      // ----------------------------------------------------
+      function fillDateRange(startStr, endStr, mode) {
+        const d1 = parseDate(startStr);
+        const d2 = parseDate(endStr);
+        const start = d1 < d2 ? d1 : d2;
+        const end = d1 < d2 ? d2 : d1;
+
+        const cur = new Date(start);
+        while (cur <= end) {
+          paintDate(formatDate(cur), mode);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
+      // ----------------------------------------------------
+      // Multi-Week Selection: "Select Full Week"
+      // ----------------------------------------------------
+      function toggleFullWeek(weekDateStrs) {
+        pushHistory();
+
+        // Check if all 7 days currently equal the active mode
+        const allMatchActive = weekDateStrs.every((d) => (schedule[d] || 'none') === activeMode);
+
+        if (allMatchActive) {
+          // If all already match the active state, toggle them to cleared!
+          weekDateStrs.forEach((d) => paintDate(d, 'clear'));
+          showToast('Cleared full week');
+        } else {
+          // Set entire 7-day week to the active mode
+          weekDateStrs.forEach((d) => paintDate(d, activeMode));
+          showToast(`Marked 7 days as ${activeMode.toUpperCase()}`);
+        }
+
+        saveSchedule();
+        renderCalendar();
+        renderTallies();
+      }
+
+      // ----------------------------------------------------
+      // Tally & Legend Calculations
+      // ----------------------------------------------------
+      function renderTallies() {
+        const yearPrefix = `${currentYear}-`;
+        const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-`;
+
+        let yearWorkDays = 0;
+        let yearHomeDays = 0;
+        let monthWorkDays = 0;
+        let monthHomeDays = 0;
+
+        for (const [dateStr, state] of Object.entries(schedule)) {
+          if (dateStr.startsWith(yearPrefix)) {
+            if (state === 'work') yearWorkDays++;
+            else if (state === 'home') yearHomeDays++;
+          }
+          if (dateStr.startsWith(monthPrefix)) {
+            if (state === 'work') monthWorkDays++;
+            else if (state === 'home') monthHomeDays++;
+          }
+        }
+
+        // Standard work weeks conversion: 5 workdays = 1 work week
+        const yearWorkWeeks = (yearWorkDays / 5).toFixed(1);
+        const yearHomeWeeks = (yearHomeDays / 5).toFixed(1);
+
+        // Update Labels
+        const lblYearWork = document.getElementById('label-year-work');
+        const lblYearHome = document.getElementById('label-year-home');
+        if (lblYearWork) lblYearWork.textContent = currentYear;
+        if (lblYearHome) lblYearHome.textContent = currentYear;
+
+        // Year work
+        const elYearWorkDays = document.getElementById('tally-year-work-days');
+        const elYearWorkWeeks = document.getElementById('tally-year-work-weeks');
+        const elMonthWorkDays = document.getElementById('tally-month-work-days');
+        if (elYearWorkDays) elYearWorkDays.textContent = yearWorkDays;
+        if (elYearWorkWeeks) elYearWorkWeeks.textContent = yearWorkWeeks;
+        if (elMonthWorkDays) elMonthWorkDays.textContent = monthWorkDays;
+
+        // Year home
+        const elYearHomeDays = document.getElementById('tally-year-home-days');
+        const elYearHomeWeeks = document.getElementById('tally-year-home-weeks');
+        const elMonthHomeDays = document.getElementById('tally-month-home-days');
+        if (elYearHomeDays) elYearHomeDays.textContent = yearHomeDays;
+        if (elYearHomeWeeks) elYearHomeWeeks.textContent = yearHomeWeeks;
+        if (elMonthHomeDays) elMonthHomeDays.textContent = monthHomeDays;
+
+        // Balance & Ratio
+        const totalScheduled = yearWorkDays + yearHomeDays;
+        const elTotalSched = document.getElementById('tally-total-scheduled');
+        if (elTotalSched) elTotalSched.textContent = `${totalScheduled} days in ${currentYear}`;
+
+        const pctWork = totalScheduled > 0 ? Math.round((yearWorkDays / totalScheduled) * 100) : 50;
+        const pctHome = totalScheduled > 0 ? 100 - pctWork : 50;
+
+        const elPctWork = document.getElementById('pct-work');
+        const elPctHome = document.getElementById('pct-home');
+        if (elPctWork) elPctWork.textContent = totalScheduled > 0 ? pctWork : 0;
+        if (elPctHome) elPctHome.textContent = totalScheduled > 0 ? pctHome : 0;
+
+        const splitWork = document.getElementById('split-bar-work');
+        const splitHome = document.getElementById('split-bar-home');
+        if (splitWork && splitHome) {
+          splitWork.style.width = `${pctWork}%`;
+          splitHome.style.width = `${pctHome}%`;
+        }
+
+        const barWorkRatio = document.getElementById('bar-work-ratio');
+        const barHomeRatio = document.getElementById('bar-home-ratio');
+        if (barWorkRatio) barWorkRatio.style.width = `${Math.min(100, (yearWorkDays / 260) * 100)}%`;
+        if (barHomeRatio) barHomeRatio.style.width = `${Math.min(100, (yearHomeDays / 260) * 100)}%`;
+
+        const elCoverage = document.getElementById('tally-coverage-rate');
+        if (elCoverage) {
+          const coverage = Math.min(100, Math.round((totalScheduled / 260) * 100));
+          elCoverage.textContent = `${coverage}% of work year`;
+        }
+      }
+
+      // ----------------------------------------------------
+      // Navigation Handlers
+      // ----------------------------------------------------
+      function setupNavigation() {
+        document.getElementById('btn-prev-month').addEventListener('click', () => {
+          currentMonth--;
+          if (currentMonth < 0) {
+            currentMonth = 11;
+            currentYear--;
+          }
+          renderCalendar();
+          renderTallies();
+        });
+
+        document.getElementById('btn-next-month').addEventListener('click', () => {
+          currentMonth++;
+          if (currentMonth > 11) {
+            currentMonth = 0;
+            currentYear++;
+          }
+          renderCalendar();
+          renderTallies();
+        });
+
+        document.getElementById('btn-today').addEventListener('click', () => {
+          const today = new Date();
+          currentYear = today.getFullYear();
+          currentMonth = today.getMonth();
+          renderCalendar();
+          renderTallies();
+          showToast('Jumped to current month');
+        });
+
+        // Mode toggles
+        document.querySelectorAll('.mode-toggle-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-mode');
+            setActiveMode(mode);
+          });
+        });
+
+        // Undo & Redo
+        document.getElementById('btn-undo').addEventListener('click', undo);
+        document.getElementById('btn-redo').addEventListener('click', redo);
+
+        // Keyboard Shortcuts: W, H, C, Ctrl+Z, Ctrl+Y
+        window.addEventListener('keydown', (e) => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) redo();
+            else undo();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            redo();
+            return;
+          }
+
+          const k = e.key.toLowerCase();
+          if (k === 'w') {
+            setActiveMode('work');
+            showToast('Active Brush: Mark Work');
+          } else if (k === 'h') {
+            setActiveMode('home');
+            showToast('Active Brush: Mark Home');
+          } else if (k === 'c') {
+            setActiveMode('clear');
+            showToast('Active Brush: Clear');
+          }
+        });
+      }
+
+      // ----------------------------------------------------
+      // Batch Presets
+      // ----------------------------------------------------
+      function applyMonthPreset(ruleFn, name) {
+        pushHistory();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = new Date(currentYear, currentMonth, d);
+          const dateStr = formatDate(date);
+          const dayOfWeek = (date.getDay() + 6) % 7; // Mon=0 .. Sun=6
+          const state = ruleFn(dayOfWeek);
+          if (state) {
+            paintDate(dateStr, state);
+          } else {
+            paintDate(dateStr, 'clear');
+          }
+        }
+        saveSchedule();
+        renderCalendar();
+        renderTallies();
+        showToast(`Applied preset: ${name}`);
+      }
+
+      function setupPresets() {
+        // Mon-Wed Work, Thu-Fri Home, Sat-Sun Off
+        document.getElementById('quick-mon-wed').addEventListener('click', () => {
+          applyMonthPreset((day) => {
+            if (day >= 0 && day <= 2) return 'work'; // Mon, Tue, Wed
+            if (day >= 3 && day <= 4) return 'home'; // Thu, Fri
+            return null; // Sat, Sun off
+          }, 'Hybrid 3/2');
+        });
+
+        // Full In-Office Mon-Fri
+        document.getElementById('quick-mon-fri-work').addEventListener('click', () => {
+          applyMonthPreset((day) => {
+            if (day >= 0 && day <= 4) return 'work';
+            return null;
+          }, 'Office Full-Time');
+        });
+
+        // Full Remote Mon-Fri
+        document.getElementById('quick-mon-fri-home').addEventListener('click', () => {
+          applyMonthPreset((day) => {
+            if (day >= 0 && day <= 4) return 'home';
+            return null;
+          }, 'Remote Full-Time');
+        });
+
+        // Clear Month
+        document.getElementById('btn-clear-month').addEventListener('click', () => {
+          if (!confirm(`Are you sure you want to clear all marked days in ${MONTH_NAMES[currentMonth]} ${currentYear}?`)) return;
+          pushHistory();
+          const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+          for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = formatDate(new Date(currentYear, currentMonth, d));
+            delete schedule[dateStr];
+          }
+          saveSchedule();
+          renderCalendar();
+          renderTallies();
+          showToast('Cleared current month');
+        });
+
+        // Reset All
+        document.getElementById('btn-clear-all').addEventListener('click', () => {
+          if (!confirm('Warning: This will clear your entire calendar schedule data. Continue?')) return;
+          pushHistory();
+          schedule = {};
+          saveSchedule();
+          renderCalendar();
+          renderTallies();
+          showToast('Entire calendar reset');
+        });
+      }
+
+      // ----------------------------------------------------
+      // Modal (Backup / Presets / Export / Import)
+      // ----------------------------------------------------
+      function setupModal() {
+        const modal = document.getElementById('modal-container');
+        const modalClose = document.getElementById('modal-close');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+
+        function openModal(title, contentHtml) {
+          modalTitle.textContent = title;
+          modalBody.innerHTML = contentHtml;
+          modal.classList.remove('hidden');
+        }
+
+        modalClose.addEventListener('click', () => {
+          modal.classList.add('hidden');
+        });
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) modal.classList.add('hidden');
+        });
+
+        // Backup / Export
+        document.getElementById('btn-export').addEventListener('click', () => {
+          const jsonStr = JSON.stringify(schedule, null, 2);
+          openModal(
+            'Backup & Restore Schedule',
+            `
+            <p>Your work calendar is saved locally in this browser. You can export or import your data below:</p>
+            <div class="flex gap-2">
+              <button id="btn-copy-json" class="flex-1 py-2 px-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-semibold transition">
+                Copy JSON to Clipboard
+              </button>
+              <button id="btn-download-json" class="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-semibold transition">
+                Download .json
+              </button>
+            </div>
+            <div class="mt-2">
+              <label class="block font-medium text-slate-400 mb-1">Import Schedule JSON:</label>
+              <textarea id="import-area" rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 font-mono text-[11px] text-slate-300 focus:outline-none focus:border-cyan-500" placeholder="Paste exported JSON here..."></textarea>
+              <button id="btn-run-import" class="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition">
+                Import &amp; Overwrite
+              </button>
+            </div>
+          `
+          );
+
+          document.getElementById('btn-copy-json').addEventListener('click', () => {
+            navigator.clipboard.writeText(jsonStr).then(() => {
+              showToast('Schedule JSON copied to clipboard');
+            });
+          });
+
+          document.getElementById('btn-download-json').addEventListener('click', () => {
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `work-calendar-${currentYear}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Download started');
+          });
+
+          document.getElementById('btn-run-import').addEventListener('click', () => {
+            const val = document.getElementById('import-area').value.trim();
+            if (!val) return;
+            try {
+              const parsed = JSON.parse(val);
+              if (typeof parsed === 'object' && parsed !== null) {
+                pushHistory();
+                schedule = parsed;
+                saveSchedule();
+                renderCalendar();
+                renderTallies();
+                modal.classList.add('hidden');
+                showToast('Schedule imported successfully');
+              } else {
+                alert('Invalid JSON format.');
+              }
+            } catch (err) {
+              alert('Error parsing JSON: ' + err.message);
+            }
+          });
+        });
+
+        // Presets Button in header
+        document.getElementById('btn-presets').addEventListener('click', () => {
+          openModal(
+            'Schedule Automation Presets',
+            `
+            <p>Select a quick schedule configuration to auto-fill the current month (${MONTH_NAMES[currentMonth]} ${currentYear}):</p>
+            <div class="flex flex-col gap-2 mt-1">
+              <button id="m-preset-hybrid" class="text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 transition">
+                <div class="font-semibold text-white">🏢 3 Days Office / 2 Days Remote</div>
+                <div class="text-slate-400 text-[11px]">Mon-Wed Office, Thu-Fri Remote</div>
+              </button>
+
+              <button id="m-preset-remote-first" class="text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500 transition">
+                <div class="font-semibold text-white">🏠 4 Days Remote / 1 Day Office</div>
+                <div class="text-slate-400 text-[11px]">Mon-Thu Remote, Fri Office</div>
+              </button>
+
+              <button id="m-preset-all-office" class="text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 transition">
+                <div class="font-semibold text-white">🏢 Full Office Week</div>
+                <div class="text-slate-400 text-[11px]">Mon-Fri In Office</div>
+              </button>
+
+              <button id="m-preset-all-remote" class="text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500 transition">
+                <div class="font-semibold text-white">🏠 Full Remote Week</div>
+                <div class="text-slate-400 text-[11px]">Mon-Fri Work From Home</div>
+              </button>
+            </div>
+          `
+          );
+
+          document.getElementById('m-preset-hybrid').addEventListener('click', () => {
+            applyMonthPreset((d) => (d <= 2 ? 'work' : d <= 4 ? 'home' : null), '3/2 Hybrid');
+            modal.classList.add('hidden');
+          });
+
+          document.getElementById('m-preset-remote-first').addEventListener('click', () => {
+            applyMonthPreset((d) => (d <= 3 ? 'home' : d === 4 ? 'work' : null), '4/1 Remote First');
+            modal.classList.add('hidden');
+          });
+
+          document.getElementById('m-preset-all-office').addEventListener('click', () => {
+            applyMonthPreset((d) => (d <= 4 ? 'work' : null), 'Full Office');
+            modal.classList.add('hidden');
+          });
+
+          document.getElementById('m-preset-all-remote').addEventListener('click', () => {
+            applyMonthPreset((d) => (d <= 4 ? 'home' : null), 'Full Remote');
+            modal.classList.add('hidden');
+          });
+        });
+      }
+
+      // ----------------------------------------------------
+      // Initialization
+      // ----------------------------------------------------
+      function init() {
+        loadSchedule();
+        setupNavigation();
+        setupPresets();
+        setupModal();
+        setActiveMode('work');
+        renderCalendar();
+        renderTallies();
+        updateUndoRedoButtons();
+      }
+
+      // Run on DOM Ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
